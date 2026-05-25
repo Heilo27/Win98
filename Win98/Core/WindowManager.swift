@@ -39,7 +39,7 @@ enum Win98AppType: String, CaseIterable, Identifiable {
         case .myDocuments: return CGSize(width: 420, height: 320)
         case .notepad: return CGSize(width: 400, height: 300)
         case .calculator: return CGSize(width: 240, height: 280)
-        case .minesweeper: return CGSize(width: 200, height: 240)
+        case .minesweeper: return CGSize(width: 300, height: 300)
         case .solitaire: return CGSize(width: 640, height: 440)
         case .recycleBin: return CGSize(width: 380, height: 280)
         case .networkNeighborhood: return CGSize(width: 380, height: 280)
@@ -92,6 +92,7 @@ class WindowManager: ObservableObject {
     @Published var showShutDownDialog: Bool = false
     @Published var recycleHasFull: Bool = false
     @Published var desktopNotes: [String] = []
+    @Published var screenSize: CGSize = UIScreen.main.bounds.size
 
     private var nextZIndex: Int = 1
 
@@ -128,6 +129,15 @@ class WindowManager: ObservableObject {
 
     func closeWindow(_ id: UUID) {
         windows.removeAll { $0.id == id }
+        compactZIndices()
+    }
+
+    private func compactZIndices() {
+        let sorted = windows.sorted { $0.zIndex < $1.zIndex }
+        for (i, win) in sorted.enumerated() {
+            win.zIndex = i + 1
+        }
+        nextZIndex = windows.count + 1
     }
 
     func bringToFront(_ id: UUID) {

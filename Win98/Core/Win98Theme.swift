@@ -57,16 +57,17 @@ enum Win98Metrics {
 // MARK: - Windows 98 Fonts
 enum Win98Font {
     static func system(_ size: CGFloat = Win98Metrics.systemFontSize) -> Font {
-        Font.custom("Menlo", size: size).weight(.regular)
+        Font.custom("Arial", size: size).weight(.regular)
     }
     static func bold(_ size: CGFloat = Win98Metrics.systemFontSize) -> Font {
-        Font.custom("Menlo", size: size).weight(.bold)
+        Font.custom("Arial", size: size).weight(.bold)
     }
-    static let ui = Font.custom("Menlo", size: Win98Metrics.systemFontSize)
-    static let uiBold = Font.custom("Menlo", size: Win98Metrics.systemFontSize).weight(.bold)
-    static let title = Font.custom("Menlo", size: Win98Metrics.titleFontSize).weight(.regular)
-    static let menu = Font.custom("Menlo", size: Win98Metrics.menuFontSize)
-    static let small = Font.custom("Menlo", size: 10)
+    static let ui = Font.custom("Arial", size: Win98Metrics.systemFontSize)
+    static let uiBold = Font.custom("Arial", size: Win98Metrics.systemFontSize).weight(.bold)
+    static let title = Font.custom("Arial", size: Win98Metrics.titleFontSize)
+    static let menu = Font.custom("Arial", size: Win98Metrics.menuFontSize)
+    static let small = Font.custom("Arial", size: 10)
+    static let notepad = Font.custom("Courier New", size: 13)
 }
 
 // MARK: - Color Hex Init

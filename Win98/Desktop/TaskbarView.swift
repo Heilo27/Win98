@@ -4,8 +4,8 @@ import Combine
 // MARK: - Taskbar
 struct TaskbarView: View {
     @EnvironmentObject var windowManager: WindowManager
-    @State private var currentTime: String = ""
-    let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    @State private var currentTime: String = Self.formattedTime()
+    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -51,8 +51,8 @@ struct TaskbarView: View {
                 .foregroundColor(Win98Color.buttonShadow),
             alignment: .bottom
         )
-        .onAppear { currentTime = formatTime() }
-        .onReceive(timer) { _ in currentTime = formatTime() }
+        .onAppear { currentTime = Self.formattedTime() }
+        .onReceive(timer) { _ in currentTime = Self.formattedTime() }
     }
 
     var taskbarSeparator: some View {
@@ -67,7 +67,7 @@ struct TaskbarView: View {
         .padding(.horizontal, 3)
     }
 
-    private func formatTime() -> String {
+    static func formattedTime() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: Date())
@@ -105,7 +105,7 @@ struct QuickLaunchArea: View {
     var body: some View {
         HStack(spacing: 3) {
             QuickLaunchIcon(icon: ExplorerIcon(size: 18).eraseToAnyView(), tooltip: "Launch Internet Explorer") {
-                windowManager.openApp(.myComputer, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(.myComputer, screenSize: windowManager.screenSize)
             }
             QuickLaunchIcon(icon: showDesktopIcon.eraseToAnyView(), tooltip: "Show Desktop") {
                 // Minimize all windows

@@ -37,8 +37,10 @@ struct MinesweeperView: View {
                     .padding(.horizontal, 6)
 
                 // Grid
-                mineGrid
-                    .padding(6)
+                ScrollView([.horizontal, .vertical]) {
+                    mineGrid
+                }
+                .padding(6)
             }
             .padding(6)
             .background(Win98Color.buttonFace)
@@ -111,6 +113,14 @@ struct LEDDisplay: View {
     }
 
     private func digitValues() -> [(offset: Int, element: Int)] {
+        if value < 0 {
+            // -1 encodes as dash segment; show "-XX"
+            let absVal = min(-value, 99)
+            let s = String(format: "%02d", absVal)
+            var result: [(offset: Int, element: Int)] = [(offset: 0, element: -1)]
+            result += s.enumerated().map { (offset: $0.offset + 1, element: Int(String($0.element)) ?? 0) }
+            return result
+        }
         let clamped = max(0, min(999, value))
         let s = String(format: "%03d", clamped)
         return s.enumerated().map { (offset: $0.offset, element: Int(String($0.element)) ?? 0) }
@@ -140,13 +150,27 @@ struct LEDDigit: View {
             let w = size.width
             let h = size.height
             let thick: CGFloat = 2
-            let segs = LEDDigit.segments[max(0, min(9, digit))]
             let onColor = Win98Color.ledRed
             let offColor = Win98Color.ledDim
 
             func drawSeg(_ on: Bool, _ path: Path) {
                 ctx.fill(path, with: .color(on ? onColor : offColor))
             }
+
+            // Handle dash segment for negative indicator (-1)
+            if digit == -1 {
+                // Only middle segment lit
+                drawSeg(false, segH(x: thick, y: 0, w: w - thick*2, t: thick))
+                drawSeg(false, segV(x: w - thick, y: thick, h: h/2 - thick, t: thick))
+                drawSeg(false, segV(x: w - thick, y: h/2, h: h/2 - thick, t: thick))
+                drawSeg(false, segH(x: thick, y: h - thick, w: w - thick*2, t: thick))
+                drawSeg(false, segV(x: 0, y: h/2, h: h/2 - thick, t: thick))
+                drawSeg(false, segV(x: 0, y: thick, h: h/2 - thick, t: thick))
+                drawSeg(true, segH(x: thick, y: h/2 - thick/2, w: w - thick*2, t: thick))
+                return
+            }
+
+            let segs = LEDDigit.segments[max(0, min(9, digit))]
 
             // Top
             drawSeg(segs[0], segH(x: thick, y: 0, w: w - thick*2, t: thick))
@@ -340,6 +364,10 @@ class MinesweeperGame: ObservableObject {
         newGame()
     }
 
+    deinit {
+        timer?.invalidate()
+    }
+
     func setDifficulty(_ d: MinesweeperDifficulty) {
         difficulty = d
         switch d {
@@ -420,22 +448,26 @@ class MinesweeperGame: ObservableObject {
         checkWin()
     }
 
-    private func floodReveal(_ r: Int, _ c: Int) {
-        guard r >= 0 && r < rows && c >= 0 && c < cols else { return }
-        guard !cells[r][c].isRevealed && !cells[r][c].isFlagged && !cells[r][c].isMine else { return }
-        cells[r][c].isRevealed = true
-        if cells[r][c].neighborCount == 0 {
-            for dr in -1...1 {
-                for dc in -1...1 {
-                    if dr != 0 || dc != 0 {
-                        floodReveal(r + dr, c + dc)
-                    }
-                }
+    private func floodReveal(_ startR: Int, _ startC: Int) {
+        var queue = [(Int, Int)]()
+        queue.append((startR, startC))
+        var head = 0
+        while head < queue.count {
+            let (r, c) = queue[head]; head += 1
+            guard r >= 0 && r < rows && c >= 0 && c < cols else { continue }
+            guard !cells[r][c].isRevealed && !cells[r][c].isFlagged && !cells[r][c].isMine else { continue }
+            cells[r][c].isRevealed = true
+            if cells[r][c].neighborCount == 0 {
+                for dr in -1...1 { for dc in -1...1 {
+                    if dr == 0 && dc == 0 { continue }
+                    queue.append((r+dr, c+dc))
+                }}
             }
         }
     }
 
     func toggleFlag(row: Int, col: Int) {
+        guard initialized else { return }
         guard !gameOver && !gameWon else { return }
         guard !cells[row][col].isRevealed else { return }
         if cells[row][col].isFlagged {

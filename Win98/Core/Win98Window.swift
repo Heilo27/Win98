@@ -9,6 +9,7 @@ struct Win98Window<Content: View>: View {
 
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging: Bool = false
+    @State private var isDraggingActive: Bool = false
     @GestureState private var resizeDrag: CGSize = .zero
     @State private var isResizing: Bool = false
     @State private var resizeStartSize: CGSize = .zero
@@ -44,7 +45,7 @@ struct Win98Window<Content: View>: View {
             // Resize handle (bottom-right)
             if !windowState.isMaximized {
                 resizeHandle
-                    .position(x: windowState.size.width - 5, y: windowState.size.height - 5)
+                    .position(x: windowState.size.width - 8, y: windowState.size.height - 8)
             }
         }
         .frame(width: windowState.size.width, height: windowState.size.height)
@@ -84,27 +85,48 @@ struct Win98Window<Content: View>: View {
                     windowState.toggleMaximize(in: screenSize)
                     windowManager.objectWillChange.send()
                 }
-                CaptionButton(label: "✕") {
-                    windowManager.closeWindow(windowState.id)
+                // Close button with pixel-drawn X
+                Button(action: { windowManager.closeWindow(windowState.id) }) {
+                    Canvas { ctx, size in
+                        let margin: CGFloat = 4
+                        let s = size.width
+                        var x1 = Path()
+                        x1.move(to: CGPoint(x: margin, y: margin))
+                        x1.addLine(to: CGPoint(x: s - margin, y: s - margin))
+                        var x2 = Path()
+                        x2.move(to: CGPoint(x: s - margin, y: margin))
+                        x2.addLine(to: CGPoint(x: margin, y: s - margin))
+                        ctx.stroke(x1, with: .color(.black), lineWidth: 1.5)
+                        ctx.stroke(x2, with: .color(.black), lineWidth: 1.5)
+                    }
+                    .frame(width: 14, height: 12)
+                    .frame(width: Win98Metrics.captionButtonWidth, height: Win98Metrics.captionButtonHeight)
+                    .background(Win98Color.buttonFace)
+                    .modifier(BevelModifier(style: .raised))
                 }
+                .buttonStyle(PlainButtonStyle())
             }
             .padding(.trailing, 3)
         }
         .frame(height: Win98Metrics.titleBarHeight)
         .background(titleBarBackground)
         .gesture(
-            DragGesture()
+            DragGesture(minimumDistance: 5)
                 .onChanged { value in
                     if !windowState.isMaximized {
+                        if !isDraggingActive {
+                            isDraggingActive = true
+                            windowManager.bringToFront(windowState.id)
+                        }
                         windowState.position = CGPoint(
                             x: windowState.position.x + value.translation.width - dragOffset.width,
                             y: windowState.position.y + value.translation.height - dragOffset.height
                         )
                         dragOffset = value.translation
-                        windowManager.bringToFront(windowState.id)
                     }
                 }
                 .onEnded { _ in
+                    isDraggingActive = false
                     dragOffset = .zero
                     // Clamp position to screen
                     windowState.position.x = max(0, min(windowState.position.x, screenSize.width - windowState.size.width))
@@ -242,7 +264,6 @@ struct Win98MenuBarButton: View {
             Button(action: onOpen) {
                 Text(title)
                     .font(Win98Font.menu)
-                    .foregroundColor(Win98Color.darkText)
                     .padding(.horizontal, 6)
                     .frame(height: 20)
                     .background(isOpen ? Win98Color.selectionBackground : Color.clear)

@@ -9,6 +9,7 @@ struct CalculatorView: View {
     @State private var memory: Double = 0
     @State private var hasMemory: Bool = false
     @State private var justCalculated: Bool = false
+    @State private var isError: Bool = false
 
     var body: some View {
         VStack(spacing: 2) {
@@ -104,6 +105,7 @@ struct CalculatorView: View {
 
     // MARK: - Calculator Logic
     private func appendDigit(_ d: String) {
+        if isError { clearAll(); isError = false }
         if waitingForSecond || justCalculated {
             displayText = d
             waitingForSecond = false
@@ -118,6 +120,7 @@ struct CalculatorView: View {
     }
 
     private func appendDecimal() {
+        if isError { clearAll(); isError = false }
         if waitingForSecond || justCalculated {
             displayText = "0."
             waitingForSecond = false
@@ -128,10 +131,12 @@ struct CalculatorView: View {
     }
 
     private func backspace() {
-        if displayText.count > 1 {
-            displayText = String(displayText.dropLast())
-        } else {
+        if isError { clearAll(); isError = false; return }
+        let result = String(displayText.dropLast())
+        if result.isEmpty || result == "-" || result == "." {
             displayText = "0"
+        } else {
+            displayText = result
         }
     }
 
@@ -141,14 +146,18 @@ struct CalculatorView: View {
         currentOperator = nil
         waitingForSecond = false
         justCalculated = false
+        isError = false
     }
 
     private func setOperator(_ op: String) {
+        if isError { clearAll(); isError = false }
         if !waitingForSecond {
             if firstOperand != nil && !justCalculated {
                 compute()
+                // firstOperand is already set to the result inside compute()
+            } else {
+                firstOperand = Double(displayText)
             }
-            firstOperand = Double(displayText)
         }
         currentOperator = op
         waitingForSecond = true
@@ -186,8 +195,10 @@ struct CalculatorView: View {
     }
 
     private func computeSqrt() {
+        if isError { clearAll(); isError = false }
         guard let val = Double(displayText), val >= 0 else {
             displayText = "Invalid input for function"
+            isError = true
             return
         }
         displayText = formatResult(sqrt(val))
@@ -195,6 +206,7 @@ struct CalculatorView: View {
     }
 
     private func computePercent() {
+        if isError { clearAll(); isError = false }
         guard let val = Double(displayText) else { return }
         if let first = firstOperand {
             displayText = formatResult(first * val / 100)
@@ -205,8 +217,10 @@ struct CalculatorView: View {
     }
 
     private func computeReciprocal() {
+        if isError { clearAll(); isError = false }
         guard let val = Double(displayText), val != 0 else {
             displayText = "Cannot divide by zero"
+            isError = true
             return
         }
         displayText = formatResult(1 / val)
@@ -214,6 +228,7 @@ struct CalculatorView: View {
     }
 
     private func toggleSign() {
+        if isError { clearAll(); isError = false; return }
         if let val = Double(displayText) {
             displayText = formatResult(-val)
         }
@@ -234,7 +249,9 @@ struct CalculatorView: View {
     }
 
     private func formatResult(_ val: Double) -> String {
-        if val == Double(Int(val)) && !val.isInfinite && !val.isNaN {
+        if !val.isInfinite && !val.isNaN, let intVal = Int(exactly: val.rounded()) {
+            return String(intVal)
+        } else if !val.isInfinite && !val.isNaN && val == val.rounded() && abs(val) < 9.007199254741e15 {
             return String(Int(val))
         }
         let s = String(format: "%.10g", val)

@@ -8,11 +8,11 @@ struct DesktopView: View {
     @State private var screenSize: CGSize = .zero
 
     let desktopIcons: [(Win98AppType, CGPoint)] = [
-        (.myComputer, CGPoint(x: 10, y: 10)),
-        (.myDocuments, CGPoint(x: 10, y: 90)),
-        (.internetExplorer, CGPoint(x: 10, y: 170)),
-        (.networkNeighborhood, CGPoint(x: 10, y: 250)),
-        (.recycleBin, CGPoint(x: 10, y: 330)),
+        (.myComputer,          CGPoint(x: 0, y: 10)),
+        (.myDocuments,         CGPoint(x: 0, y: 90)),
+        (.internetExplorer,    CGPoint(x: 0, y: 170)),
+        (.networkNeighborhood, CGPoint(x: 0, y: 250)),
+        (.recycleBin,          CGPoint(x: 0, y: 330)),
     ]
 
     var body: some View {
@@ -22,23 +22,36 @@ struct DesktopView: View {
                 Win98Color.desktop
                     .ignoresSafeArea()
 
-                // Dynamic Island / notch safe bar — black strip across the top safe area
-                // so no Win98 content renders behind the Dynamic Island pill
-                VStack(spacing: 0) {
-                    Color.black
-                        .frame(height: geo.safeAreaInsets.top)
-                        .ignoresSafeArea(edges: .top)
-                    Spacer()
+                // Dynamic Island / notch safe bars — covers top (portrait) and leading (landscape)
+                // In landscape on iPhone Pro the DI is on the left; in portrait it's at the top
+                Group {
+                    if geo.safeAreaInsets.top > 0 {
+                        VStack(spacing: 0) {
+                            Color.black
+                                .frame(height: geo.safeAreaInsets.top)
+                                .ignoresSafeArea(edges: .top)
+                            Spacer()
+                        }
+                    }
+                    if geo.safeAreaInsets.leading > 0 {
+                        HStack(spacing: 0) {
+                            Color.black
+                                .frame(width: geo.safeAreaInsets.leading)
+                                .ignoresSafeArea(edges: .leading)
+                            Spacer()
+                        }
+                    }
                 }
                 .zIndex(501)
 
-                // Desktop icons
+                // Desktop icons — offset by leading safe area so they clear the Dynamic Island in landscape
+                let leadingOffset = geo.safeAreaInsets.leading + 8
                 ForEach(desktopIcons, id: \.0) { app, position in
                     DesktopIcon(app: app) {
                         windowManager.openApp(app, screenSize: geo.size)
                     }
                     .position(
-                        x: position.x + Win98Metrics.iconTouchSize / 2 + 5,
+                        x: position.x + Win98Metrics.iconTouchSize / 2 + leadingOffset,
                         y: position.y + Win98Metrics.iconTouchSize / 2 + 5
                     )
                 }
@@ -79,9 +92,12 @@ struct DesktopView: View {
                         .onTapGesture { windowManager.showStartMenu = false }
                         .zIndex(998)
 
+                    let menuHeight: CGFloat = 400
+                    let menuX = geo.safeAreaInsets.leading + Win98Metrics.startButtonWidth / 2 + 2
+                    let menuYIdeal = geo.size.height - Win98Metrics.taskbarHeight - menuHeight / 2
+                    let menuY = max(menuHeight / 2 + 4, menuYIdeal)
                     StartMenuView()
-                        .position(x: Win98Metrics.startButtonWidth / 2 + 2,
-                                  y: geo.size.height - Win98Metrics.taskbarHeight - 200)
+                        .position(x: menuX, y: menuY)
                         .zIndex(999)
                 }
 
@@ -103,7 +119,14 @@ struct DesktopView: View {
                 .ignoresSafeArea(edges: .bottom)
                 .zIndex(500)
             }
-            .onAppear { screenSize = geo.size }
+            .onAppear {
+                screenSize = geo.size
+                windowManager.screenSize = geo.size
+            }
+            .onChange(of: geo.size) { newSize in
+                screenSize = newSize
+                windowManager.screenSize = newSize
+            }
             .gesture(
                 LongPressGesture(minimumDuration: 0.6)
                     .sequenced(before: DragGesture(minimumDistance: 0))
@@ -136,7 +159,7 @@ struct DesktopView: View {
             case .myDocuments:
                 MyDocumentsView()
             case .notepad:
-                NotepadView()
+                NotepadView(windowID: win.id)
             case .calculator:
                 CalculatorView()
             case .minesweeper:
@@ -151,7 +174,8 @@ struct DesktopView: View {
                 WindowsExplorerView()
             case .internetExplorer:
                 InternetExplorerView()
-            default:
+            case .shutDown:
+                // shutDown is never opened as a real window (handled in WindowManager.openApp)
                 Text("Not implemented")
                     .foregroundColor(Win98Color.darkText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

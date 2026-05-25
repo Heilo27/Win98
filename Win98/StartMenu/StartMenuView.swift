@@ -182,7 +182,7 @@ struct ProgramsSubmenu: View {
             )
 
             submenuItem("Internet Explorer", hasSubmenu: false, active: false) {
-                windowManager.openApp(.internetExplorer, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(.internetExplorer, screenSize: windowManager.screenSize)
                 windowManager.showStartMenu = false
             }
 
@@ -191,7 +191,7 @@ struct ProgramsSubmenu: View {
             }
 
             submenuItem("Windows Explorer", hasSubmenu: false, active: false) {
-                windowManager.openApp(.explorer, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(.explorer, screenSize: windowManager.screenSize)
                 windowManager.showStartMenu = false
             }
         }
@@ -230,11 +230,11 @@ struct AccessoriesSubmenu: View {
             menuSep
 
             submenuItem("Calculator", hasSubmenu: false, active: false) {
-                windowManager.openApp(.calculator, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(.calculator, screenSize: windowManager.screenSize)
                 windowManager.showStartMenu = false
             }
             submenuItem("Notepad", hasSubmenu: false, active: false) {
-                windowManager.openApp(.notepad, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(.notepad, screenSize: windowManager.screenSize)
                 windowManager.showStartMenu = false
             }
             submenuItem("Paint", hasSubmenu: false, active: false) {
@@ -285,7 +285,7 @@ struct GamesSubmenu: View {
     func gameItem(_ title: String, app: Win98AppType? = nil, action: @escaping () -> Void = {}) -> some View {
         StartMenuItemRow(title: title, icon: "gamecontroller", hasSubmenu: false, isActive: false) {
             if let app = app {
-                windowManager.openApp(app, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(app, screenSize: windowManager.screenSize)
             } else {
                 action()
             }
@@ -301,7 +301,7 @@ struct SettingsSubmenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             StartMenuItemRow(title: "Control Panel", icon: "gearshape.2", hasSubmenu: false, isActive: false) {
-                windowManager.openApp(.myComputer, screenSize: UIScreen.main.bounds.size)
+                windowManager.openApp(.myComputer, screenSize: windowManager.screenSize)
                 windowManager.showStartMenu = false
             }
             StartMenuItemRow(title: "Printers", icon: "printer", hasSubmenu: false, isActive: false) {

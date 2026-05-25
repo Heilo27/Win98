@@ -39,6 +39,73 @@ struct PlayingCard: Identifiable, Equatable {
     }
 }
 
+// MARK: - Win Animation Controller
+class WinAnimationController: ObservableObject {
+    @Published var balls: [WinBall] = []
+    private var timer: Timer?
+
+    struct WinBall: Identifiable {
+        let id = UUID()
+        var card: PlayingCard
+        var position: CGPoint
+        var velocity: CGPoint
+    }
+
+    func start(cards: [PlayingCard], bounds: CGSize) {
+        balls = cards.prefix(52).map { card in
+            WinBall(
+                card: card,
+                position: CGPoint(
+                    x: CGFloat.random(in: 50...max(51, bounds.width - 50)),
+                    y: CGFloat.random(in: 50...200)
+                ),
+                velocity: CGPoint(
+                    x: CGFloat.random(in: -6...6),
+                    y: CGFloat.random(in: -8 ... -4)
+                )
+            )
+        }
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.update(bounds: bounds) }
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        balls = []
+    }
+
+    private func update(bounds: CGSize) {
+        let gravity: CGFloat = 0.4
+        let damping: CGFloat = 0.85
+        let cardW: CGFloat = 50, cardH: CGFloat = 70
+        for i in balls.indices {
+            balls[i].velocity.y += gravity
+            balls[i].position.x += balls[i].velocity.x
+            balls[i].position.y += balls[i].velocity.y
+            // Bounce off sides
+            if balls[i].position.x < cardW / 2 || balls[i].position.x > bounds.width - cardW / 2 {
+                balls[i].velocity.x *= -damping
+                balls[i].position.x = balls[i].position.x < cardW / 2 ? cardW / 2 : bounds.width - cardW / 2
+            }
+            // Bounce off bottom
+            if balls[i].position.y > bounds.height - cardH / 2 {
+                balls[i].velocity.y *= -damping
+                balls[i].velocity.x *= 0.98  // slight horizontal friction
+                balls[i].position.y = bounds.height - cardH / 2
+            }
+            // Bounce off top
+            if balls[i].position.y < cardH / 2 {
+                balls[i].velocity.y = abs(balls[i].velocity.y)
+                balls[i].position.y = cardH / 2
+            }
+        }
+    }
+
+    deinit { timer?.invalidate() }
+}
+
 // MARK: - Solitaire Game
 class SolitaireGame: ObservableObject {
     @Published var tableau: [[PlayingCard]] = Array(repeating: [], count: 7)
@@ -176,6 +243,16 @@ class SolitaireGame: ObservableObject {
         return false
     }
 
+    func moveTableauToTableau(fromCol: Int, fromIndex: Int, toCol: Int) -> Bool {
+        guard fromIndex < tableau[fromCol].count else { return false }
+        let cards = Array(tableau[fromCol].suffix(from: fromIndex))
+        guard let firstCard = cards.first, canPlaceOnTableau(firstCard, col: toCol) else { return false }
+        tableau[toCol].append(contentsOf: cards)
+        tableau[fromCol].removeLast(cards.count)
+        flipTopCard(col: fromCol)
+        return true
+    }
+
     private func canPlaceOnFoundation(_ card: PlayingCard, pile: Int) -> Bool {
         let f = foundations[pile]
         if f.isEmpty { return card.rank == 1 }
@@ -223,12 +300,11 @@ class SolitaireGame: ObservableObject {
 // MARK: - Solitaire View
 struct SolitaireView: View {
     @StateObject private var game = SolitaireGame()
+    @StateObject private var winAnim = WinAnimationController()
     @State private var draggedCards: [PlayingCard] = []
     @State private var dragSource: DragSource? = nil
     @State private var dragOffset: CGSize = .zero
     @State private var dragStartPosition: CGPoint = .zero
-    @State private var winBalls: [WinBall] = []
-    @State private var winTimer: Timer? = nil
 
     enum DragSource {
         case waste
@@ -236,112 +312,122 @@ struct SolitaireView: View {
     }
 
     var body: some View {
-        ZStack {
-            Win98Color.greenFelt
+        GeometryReader { geometry in
+            ZStack {
+                Win98Color.greenFelt
 
-            VStack(spacing: 8) {
-                // Top row: stock, waste, spacers, 4 foundations
-                HStack(alignment: .top, spacing: 6) {
-                    // Stock
-                    CardPileView(isEmpty: game.stock.isEmpty, faceDown: true)
-                        .onTapGesture { game.drawFromStock() }
+                VStack(spacing: 8) {
+                    // Top row: stock, waste, spacers, 4 foundations
+                    HStack(alignment: .top, spacing: 6) {
+                        // Stock
+                        CardPileView(isEmpty: game.stock.isEmpty, faceDown: true)
+                            .onTapGesture { game.drawFromStock() }
 
-                    // Waste
-                    ZStack {
-                        CardSlotView()
-                        if !game.waste.isEmpty {
-                            CardView(card: game.waste.last!, small: false)
-                                .onTapGesture(count: 2) { _ = game.moveWasteToFoundation() }
-                                .gesture(
-                                    DragGesture()
-                                        .onChanged { val in
-                                            if draggedCards.isEmpty {
-                                                draggedCards = [game.waste.last!]
-                                                dragSource = .waste
-                                                dragStartPosition = CGPoint(x: val.startLocation.x, y: val.startLocation.y)
-                                            }
-                                            dragOffset = val.translation
-                                        }
-                                        .onEnded { val in
-                                            handleDrop(at: val.predictedEndLocation)
-                                            draggedCards = []
-                                            dragSource = nil
-                                            dragOffset = .zero
-                                        }
-                                )
-                        }
-                    }
-                    .frame(width: cardWidth, height: cardHeight)
-
-                    Spacer()
-
-                    // Foundations
-                    ForEach(0..<4, id: \.self) { i in
+                        // Waste
                         ZStack {
-                            CardSlotView(suit: foundationSuit(i))
-                            if let top = game.foundations[i].last {
-                                CardView(card: top, small: false)
+                            CardSlotView()
+                            if !game.waste.isEmpty {
+                                CardView(card: game.waste.last!, small: false)
+                                    .onTapGesture(count: 2) { _ = game.moveWasteToFoundation() }
+                                    .gesture(
+                                        DragGesture(minimumDistance: 5, coordinateSpace: .named("solitaireRoot"))
+                                            .onChanged { val in
+                                                if draggedCards.isEmpty {
+                                                    draggedCards = [game.waste.last!]
+                                                    dragSource = .waste
+                                                    dragStartPosition = CGPoint(x: val.startLocation.x, y: val.startLocation.y)
+                                                }
+                                                dragOffset = val.translation
+                                            }
+                                            .onEnded { val in
+                                                handleWasteDrop(at: val.location)
+                                                draggedCards = []
+                                                dragSource = nil
+                                                dragOffset = .zero
+                                            }
+                                    )
                             }
                         }
                         .frame(width: cardWidth, height: cardHeight)
-                    }
-                }
-                .padding(.horizontal, 8)
 
-                // Tableau
-                HStack(alignment: .top, spacing: 6) {
-                    ForEach(0..<7, id: \.self) { col in
-                        TableauColumn(
-                            cards: game.tableau[col],
-                            col: col,
-                            game: game,
-                            draggedCards: $draggedCards,
-                            dragSource: $dragSource,
-                            dragOffset: $dragOffset
-                        )
-                        .frame(width: cardWidth)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .frame(maxHeight: .infinity, alignment: .top)
-            }
-            .padding(.top, 8)
+                        Spacer()
 
-            // Dragged cards overlay
-            if !draggedCards.isEmpty {
-                VStack(spacing: -50) {
-                    ForEach(draggedCards) { card in
-                        CardView(card: card, small: false)
+                        // Foundations
+                        ForEach(0..<4, id: \.self) { i in
+                            ZStack {
+                                CardSlotView(suit: foundationSuit(i))
+                                if let top = game.foundations[i].last {
+                                    CardView(card: top, small: false)
+                                }
+                            }
                             .frame(width: cardWidth, height: cardHeight)
+                        }
                     }
-                }
-                .offset(dragOffset)
-                .position(dragStartPosition)
-                .allowsHitTesting(false)
-            }
+                    .padding(.horizontal, 8)
 
-            // Win animation
-            if game.isAnimatingWin {
-                ForEach(winBalls) { ball in
-                    CardView(card: ball.card, small: true)
-                        .frame(width: 30, height: 42)
-                        .position(ball.position)
+                    // Tableau
+                    HStack(alignment: .top, spacing: 6) {
+                        ForEach(0..<7, id: \.self) { col in
+                            TableauColumn(
+                                cards: game.tableau[col],
+                                col: col,
+                                game: game,
+                                draggedCards: $draggedCards,
+                                dragSource: $dragSource,
+                                dragOffset: $dragOffset,
+                                onDrop: { location, fromCol, cards in
+                                    handleTableauDrop(at: location, fromCol: fromCol, cards: cards)
+                                }
+                            )
+                            .frame(width: cardWidth)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
-                VStack {
-                    Text("You Win!")
-                        .font(.custom("Menlo", size: 28).weight(.bold))
-                        .foregroundColor(.white)
-                        .shadow(color: .black, radius: 2)
-                    Win98Button(title: "Play Again") {
-                        stopWinAnimation()
-                        game.newGame()
+                .padding(.top, 8)
+
+                // Dragged cards overlay
+                if !draggedCards.isEmpty {
+                    VStack(spacing: -50) {
+                        ForEach(draggedCards) { card in
+                            CardView(card: card, small: false)
+                                .frame(width: cardWidth, height: cardHeight)
+                        }
+                    }
+                    .offset(dragOffset)
+                    .position(dragStartPosition)
+                    .allowsHitTesting(false)
+                }
+
+                // Win animation
+                if game.isAnimatingWin {
+                    ForEach(winAnim.balls, id: \.id) { ball in
+                        CardView(card: ball.card, small: true)
+                            .frame(width: 30, height: 42)
+                            .position(ball.position)
+                    }
+                    VStack {
+                        Text("You Win!")
+                            .font(.custom("Arial", size: 28).weight(.bold))
+                            .foregroundColor(.white)
+                            .shadow(color: .black, radius: 2)
+                        Win98Button(title: "Play Again") {
+                            winAnim.stop()
+                            game.newGame()
+                        }
                     }
                 }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: game.isAnimatingWin) { _, newVal in
-            if newVal { startWinAnimation() }
+            .coordinateSpace(name: "solitaireRoot")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onDisappear { winAnim.stop() }
+            .onChange(of: game.isAnimatingWin) { _, newVal in
+                if newVal {
+                    let allCards = game.foundations.flatMap { $0 }
+                    winAnim.start(cards: allCards, bounds: geometry.size)
+                }
+            }
         }
     }
 
@@ -352,90 +438,40 @@ struct SolitaireView: View {
         PlayingCard.Suit.allCases[i]
     }
 
-    func handleDrop(at location: CGPoint) {
-        // Simplified drop detection - try to move to any tableau or foundation
-        guard let source = dragSource, !draggedCards.isEmpty else { return }
+    func handleWasteDrop(at location: CGPoint) {
+        guard dragSource != nil, !draggedCards.isEmpty else { return }
+        // Try foundation first
+        if game.moveWasteToFoundation() { return }
+        // Try each tableau column based on X position
+        let padding: CGFloat = 8
+        let spacing: CGFloat = 6
+        for toCol in 0..<7 {
+            let colCenterX = padding + CGFloat(toCol) * (cardWidth + spacing) + cardWidth / 2
+            if abs(location.x - colCenterX) < cardWidth * 0.7 {
+                _ = game.moveWasteToTableau(toCol: toCol)
+                return
+            }
+        }
+    }
 
-        switch source {
-        case .waste:
-            _ = game.moveWasteToFoundation() || {
-                for col in 0..<7 { if game.moveWasteToTableau(toCol: col) { return true } }
-                return false
-            }()
-        case .tableau(let fromCol, let startIdx):
-            // Try to find target column from location
-            let headerHeight: CGFloat = 100
-            let padding: CGFloat = 8
-            let spacing: CGFloat = 6
-            for toCol in 0..<7 {
-                let colX = padding + CGFloat(toCol) * (cardWidth + spacing) + cardWidth / 2
-                if abs(location.x - colX) < cardWidth / 2 {
-                    let cardsToMove = Array(game.tableau[fromCol].suffix(from: startIdx))
-                    if !cardsToMove.isEmpty {
-                        _ = game.moveCards(cardsToMove, fromCol: fromCol, toCol: toCol)
-                    }
-                    return
+    func handleTableauDrop(at location: CGPoint, fromCol: Int, cards: [PlayingCard]) {
+        // Try foundation first if single card
+        if cards.count == 1 {
+            if game.moveTableauToFoundation(col: fromCol) { return }
+        }
+        // Try each tableau column based on X position
+        let padding: CGFloat = 8
+        let spacing: CGFloat = 6
+        for toCol in 0..<7 {
+            let colCenterX = padding + CGFloat(toCol) * (cardWidth + spacing) + cardWidth / 2
+            if abs(location.x - colCenterX) < cardWidth * 0.7 {
+                if toCol != fromCol {
+                    let fromIndex = game.tableau[fromCol].count - cards.count
+                    _ = game.moveTableauToTableau(fromCol: fromCol, fromIndex: fromIndex, toCol: toCol)
                 }
-            }
-            // Try foundation
-            if draggedCards.count == 1 {
-                _ = game.moveTableauToFoundation(col: fromCol)
+                return
             }
         }
-    }
-
-    // MARK: - Win Animation
-    struct WinBall: Identifiable {
-        let id = UUID()
-        var card: PlayingCard
-        var position: CGPoint
-        var velocity: CGSize
-    }
-
-    func startWinAnimation() {
-        // Create bouncing cards
-        winBalls = game.foundations.flatMap { $0 }.prefix(20).map { card in
-            WinBall(
-                card: card,
-                position: CGPoint(x: CGFloat.random(in: 50...550), y: CGFloat.random(in: 50...200)),
-                velocity: CGSize(
-                    width: CGFloat.random(in: -6...6),
-                    height: CGFloat.random(in: -8 ... -3)
-                )
-            )
-        }
-        winTimer = Timer.scheduledTimer(withTimeInterval: 1.0/30.0, repeats: true) { [self] _ in
-            DispatchQueue.main.async {
-                updateWinAnimation()
-            }
-        }
-    }
-
-    func updateWinAnimation() {
-        for i in winBalls.indices {
-            winBalls[i].position.x += winBalls[i].velocity.width
-            winBalls[i].position.y += winBalls[i].velocity.height
-            winBalls[i].velocity.height += 0.4 // gravity
-
-            // Bounce off edges
-            if winBalls[i].position.x < 15 || winBalls[i].position.x > 625 {
-                winBalls[i].velocity.width *= -1
-            }
-            if winBalls[i].position.y > 400 {
-                winBalls[i].velocity.height *= -0.8
-                winBalls[i].position.y = 400
-            }
-            if winBalls[i].position.y < 0 {
-                winBalls[i].velocity.height *= -1
-                winBalls[i].position.y = 0
-            }
-        }
-    }
-
-    func stopWinAnimation() {
-        winTimer?.invalidate()
-        winTimer = nil
-        winBalls = []
     }
 }
 
@@ -447,6 +483,9 @@ struct TableauColumn: View {
     @Binding var draggedCards: [PlayingCard]
     @Binding var dragSource: SolitaireView.DragSource?
     @Binding var dragOffset: CGSize
+    let onDrop: (CGPoint, Int, [PlayingCard]) -> Void
+
+    @State private var localDraggedCards: [PlayingCard] = []
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -463,17 +502,21 @@ struct TableauColumn: View {
                                 _ = game.moveTableauToFoundation(col: col)
                             }
                             .gesture(
-                                DragGesture()
+                                DragGesture(minimumDistance: 5, coordinateSpace: .named("solitaireRoot"))
                                     .onChanged { val in
                                         if draggedCards.isEmpty {
                                             let cardsToMove = Array(cards.suffix(from: idx))
                                             draggedCards = cardsToMove
+                                            localDraggedCards = cardsToMove
                                             dragSource = .tableau(col, idx)
                                         }
                                         dragOffset = val.translation
                                     }
-                                    .onEnded { _ in
+                                    .onEnded { val in
+                                        let captured = localDraggedCards
+                                        onDrop(val.location, col, captured)
                                         draggedCards = []
+                                        localDraggedCards = []
                                         dragSource = nil
                                         dragOffset = .zero
                                     }
@@ -501,7 +544,7 @@ struct CardView: View {
                 .win98Raised()
             VStack(alignment: .leading, spacing: 0) {
                 Text(card.rankString)
-                    .font(Font.custom("Menlo", size: small ? 8 : 11).weight(.bold))
+                    .font(Font.custom("Arial", size: small ? 8 : 11).weight(.bold))
                     .foregroundColor(card.color)
                 Text(card.suit.symbol)
                     .font(Font.system(size: small ? 8 : 10))

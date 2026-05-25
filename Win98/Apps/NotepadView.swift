@@ -2,14 +2,22 @@ import SwiftUI
 
 // MARK: - Notepad
 struct NotepadView: View {
+    let windowID: UUID
     @State private var text: String = ""
     @State private var wordWrap: Bool = true
     @State private var showFindSheet: Bool = false
     @State private var findText: String = ""
+    @State private var caseSensitive: Bool = false
     @State private var showUnsavedAlert: Bool = false
     @State private var fileName: String = "Untitled"
+    @State private var currentFilename: String? = nil
     @State private var isDirty: Bool = false
+    @State private var lastFindRange: Range<String.Index>? = nil
     @EnvironmentObject var windowManager: WindowManager
+
+    init(windowID: UUID = UUID()) {
+        self.windowID = windowID
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,7 +39,9 @@ struct NotepadView: View {
                     Win98MenuBarItem("Page Setup...") {},
                     Win98MenuBarItem("Print...", shortcut: "Ctrl+P", isEnabled: false) {},
                     Win98MenuBarItem(_sep: true),
-                    Win98MenuBarItem("Exit") {},
+                    Win98MenuBarItem("Exit") {
+                        windowManager.closeWindow(windowID)
+                    },
                 ]),
                 ("Edit", [
                     Win98MenuBarItem("Undo", shortcut: "Ctrl+Z", isEnabled: false) {},
@@ -59,7 +69,7 @@ struct NotepadView: View {
                 ("Search", [
                     Win98MenuBarItem("Find...", shortcut: "Ctrl+F") { showFindSheet = true },
                     Win98MenuBarItem("Find Next", shortcut: "F3", isEnabled: !findText.isEmpty) {
-                        // Find next occurrence
+                        findNext()
                     },
                 ]),
                 ("Help", [
@@ -106,12 +116,36 @@ struct NotepadView: View {
     }
 
     private func saveFile() {
-        // Save implementation
+        guard let filename = currentFilename else {
+            saveFileAs()
+            return
+        }
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+        try? text.write(to: url, atomically: true, encoding: .utf8)
         isDirty = false
     }
 
     private func saveFileAs() {
+        let filename = currentFilename ?? "\(fileName).txt"
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+        try? text.write(to: url, atomically: true, encoding: .utf8)
+        currentFilename = filename
         isDirty = false
+    }
+
+    private func findNext() {
+        guard !findText.isEmpty else { return }
+        let searchText = caseSensitive ? findText : findText.lowercased()
+        let content = caseSensitive ? text : text.lowercased()
+        let startIndex = lastFindRange?.upperBound ?? content.startIndex
+        if let range = content.range(of: searchText, range: startIndex..<content.endIndex) {
+            lastFindRange = range
+        } else if let range = content.range(of: searchText) {
+            // Wrap around
+            lastFindRange = range
+        }
     }
 }
 

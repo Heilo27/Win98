@@ -6,6 +6,7 @@ struct DesktopIcon: View {
     let onOpen: () -> Void
     @State private var isSelected: Bool = false
     @State private var tapCount: Int = 0
+    @State private var tapTimer: Timer? = nil
 
     var body: some View {
         VStack(spacing: 3) {
@@ -33,12 +34,17 @@ struct DesktopIcon: View {
         }
         .frame(width: Win98Metrics.iconTouchSize + 22, height: Win98Metrics.iconTouchSize + 28)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            onOpen()
-            isSelected = false
-        }
-        .onTapGesture(count: 1) {
-            isSelected = true
+        .onTapGesture {
+            tapCount += 1
+            tapTimer?.invalidate()
+            tapTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
+                if tapCount >= 2 {
+                    DispatchQueue.main.async { onOpen(); isSelected = false }
+                } else {
+                    DispatchQueue.main.async { isSelected = true }
+                }
+                tapCount = 0
+            }
         }
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.5)
