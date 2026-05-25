@@ -88,7 +88,7 @@ struct StartMenuView: View {
                 menuSeparator
 
                 // Log Off
-                StartMenuItemRow(title: "Log Off Ryan...", icon: "person.fill", hasSubmenu: false, isActive: false) {
+                StartMenuItemRow(title: "Log Off User...", icon: "person.fill", hasSubmenu: false, isActive: false) {
                     activeSubmenu = nil
                     windowManager.showStartMenu = false
                 }

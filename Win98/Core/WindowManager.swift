@@ -40,11 +40,11 @@ enum Win98AppType: String, CaseIterable, Identifiable {
         case .notepad: return CGSize(width: 400, height: 300)
         case .calculator: return CGSize(width: 240, height: 280)
         case .minesweeper: return CGSize(width: 300, height: 300)
-        case .solitaire: return CGSize(width: 640, height: 440)
-        case .recycleBin: return CGSize(width: 380, height: 280)
-        case .networkNeighborhood: return CGSize(width: 380, height: 280)
-        case .explorer: return CGSize(width: 500, height: 380)
-        case .internetExplorer: return CGSize(width: 680, height: 500)
+        case .solitaire: return CGSize(width: 620, height: 340)
+        case .recycleBin: return CGSize(width: 380, height: 260)
+        case .networkNeighborhood: return CGSize(width: 380, height: 260)
+        case .explorer: return CGSize(width: 480, height: 320)
+        case .internetExplorer: return CGSize(width: 660, height: 460)
         case .shutDown: return CGSize(width: 320, height: 180)
         }
     }
@@ -92,7 +92,7 @@ class WindowManager: ObservableObject {
     @Published var showShutDownDialog: Bool = false
     @Published var recycleHasFull: Bool = false
     @Published var desktopNotes: [String] = []
-    @Published var screenSize: CGSize = UIScreen.main.bounds.size
+    @Published var screenSize: CGSize = CGSize(width: 1024, height: 768)
 
     private var nextZIndex: Int = 1
 

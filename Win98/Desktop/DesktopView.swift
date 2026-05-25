@@ -7,12 +7,8 @@ struct DesktopView: View {
     @State private var contextMenuPosition: CGPoint = .zero
     @State private var screenSize: CGSize = .zero
 
-    let desktopIcons: [(Win98AppType, CGPoint)] = [
-        (.myComputer,          CGPoint(x: 0, y: 10)),
-        (.myDocuments,         CGPoint(x: 0, y: 90)),
-        (.internetExplorer,    CGPoint(x: 0, y: 170)),
-        (.networkNeighborhood, CGPoint(x: 0, y: 250)),
-        (.recycleBin,          CGPoint(x: 0, y: 330)),
+    let desktopApps: [Win98AppType] = [
+        .myComputer, .myDocuments, .internetExplorer, .networkNeighborhood, .recycleBin
     ]
 
     var body: some View {
@@ -44,15 +40,18 @@ struct DesktopView: View {
                 }
                 .zIndex(501)
 
-                // Desktop icons — offset by leading safe area so they clear the Dynamic Island in landscape
+                // Desktop icons — evenly spaced in available height above taskbar,
+                // offset by leading safe area to clear Dynamic Island in landscape
                 let leadingOffset = geo.safeAreaInsets.leading + 8
-                ForEach(desktopIcons, id: \.0) { app, position in
+                let availableH = geo.size.height - Win98Metrics.taskbarHeight - 10
+                let iconStep = min(80, availableH / CGFloat(desktopApps.count))
+                ForEach(Array(desktopApps.enumerated()), id: \.element) { idx, app in
                     DesktopIcon(app: app) {
                         windowManager.openApp(app, screenSize: geo.size)
                     }
                     .position(
-                        x: position.x + Win98Metrics.iconTouchSize / 2 + leadingOffset,
-                        y: position.y + Win98Metrics.iconTouchSize / 2 + 5
+                        x: Win98Metrics.iconTouchSize / 2 + leadingOffset,
+                        y: Win98Metrics.iconTouchSize / 2 + 8 + CGFloat(idx) * iconStep
                     )
                 }
 
