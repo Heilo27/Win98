@@ -309,19 +309,22 @@ struct Win98WebView: UIViewRepresentable {
         webView.addObserver(context.coordinator, forKeyPath: "title", options: .new, context: nil)
         webView.allowsBackForwardNavigationGestures = true
         DispatchQueue.main.async { webViewRef = webView }
+        context.coordinator.lastLoadedURL = url
         webView.load(URLRequest(url: url))
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        // Only navigate if the URL actually changed
-        if webView.url != url {
+        // Only trigger a new load when the committed URL actually changed from outside
+        if context.coordinator.lastLoadedURL != url {
+            context.coordinator.lastLoadedURL = url
             webView.load(URLRequest(url: url))
         }
     }
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var parent: Win98WebView
+        var lastLoadedURL: URL?
         init(_ parent: Win98WebView) { self.parent = parent }
 
         override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {

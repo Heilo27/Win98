@@ -12,46 +12,38 @@ struct DesktopView: View {
     ]
 
     var body: some View {
+        // ignoresSafeArea on the GeometryReader so geo.size = full physical screen
         GeometryReader { geo in
             ZStack(alignment: .bottomLeading) {
-                // Teal desktop background
+                // Teal desktop background — full bleed
                 Win98Color.desktop
                     .ignoresSafeArea()
 
-                // Dynamic Island / notch safe bars — covers top (portrait) and leading (landscape)
-                // In landscape on iPhone Pro the DI is on the left; in portrait it's at the top
-                Group {
-                    if geo.safeAreaInsets.top > 0 {
-                        VStack(spacing: 0) {
-                            Color.black
-                                .frame(height: geo.safeAreaInsets.top)
-                                .ignoresSafeArea(edges: .top)
-                            Spacer()
-                        }
-                    }
-                    if geo.safeAreaInsets.leading > 0 {
-                        HStack(spacing: 0) {
-                            Color.black
-                                .frame(width: geo.safeAreaInsets.leading)
-                                .ignoresSafeArea(edges: .leading)
-                            Spacer()
-                        }
-                    }
-                }
-                .zIndex(501)
+                // Black bar covering the Dynamic Island / notch area.
+                // In landscape on iPhone Pro the pill is on the leading side.
+                // In portrait it's at the top. We cover whichever inset is non-zero.
+                // This is purely cosmetic — content is positioned below/after the inset.
+                Color.black
+                    .frame(
+                        width: geo.safeAreaInsets.leading > 0 ? geo.safeAreaInsets.leading : geo.size.width,
+                        height: geo.safeAreaInsets.leading > 0 ? geo.size.height : geo.safeAreaInsets.top
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: geo.safeAreaInsets.leading > 0 ? .leading : .top)
+                    .ignoresSafeArea()
+                    .zIndex(501)
 
-                // Desktop icons — evenly spaced in available height above taskbar,
-                // offset by leading safe area to clear Dynamic Island in landscape
-                let leadingOffset = geo.safeAreaInsets.leading + 8
-                let availableH = geo.size.height - Win98Metrics.taskbarHeight - 10
+                // Desktop icons — evenly spaced vertically in the safe content area
+                let safeLeading = geo.safeAreaInsets.leading + 8
+                let safeTop = geo.safeAreaInsets.top + 8
+                let availableH = geo.size.height - Win98Metrics.taskbarHeight - safeTop - 8
                 let iconStep = min(80, availableH / CGFloat(desktopApps.count))
                 ForEach(Array(desktopApps.enumerated()), id: \.element) { idx, app in
                     DesktopIcon(app: app) {
                         windowManager.openApp(app, screenSize: geo.size)
                     }
                     .position(
-                        x: Win98Metrics.iconTouchSize / 2 + leadingOffset,
-                        y: Win98Metrics.iconTouchSize / 2 + 8 + CGFloat(idx) * iconStep
+                        x: Win98Metrics.iconTouchSize / 2 + safeLeading,
+                        y: safeTop + Win98Metrics.iconTouchSize / 2 + CGFloat(idx) * iconStep
                     )
                 }
 
@@ -141,6 +133,7 @@ struct DesktopView: View {
                     }
             )
         }
+        .ignoresSafeArea()
     }
 
     @ViewBuilder
